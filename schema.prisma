@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 养殖场
+model Farm {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  owner     String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  batches    ChickenBatch[]
+  houses     ChickenHouse[]
+  devices    Device[]
+  alerts     Alert[]
+}
+
+// 鸡舍/棚
+model ChickenHouse {
+  id        String   @id @default(cuid())
+  farmId    String
+  name      String
+  capacity  Int
+  status    String   @default("空闲") // 空闲, 养殖中, 消毒中, 维修中
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farm       Farm            @relation(fields: [farmId], references: [id])
+  batches    ChickenBatch[]
+  devices    Device[]
+  envRecords EnvironmentRecord[]
+}
+
+// 养殖批次
+model ChickenBatch {
+  id           String   @id @default(cuid())
+  farmId       String
+  houseId      String
+  batchNo      String   @unique
+  breed        String   @default("白羽肉鸡")
+  quantity     Int
+  startDate    DateTime
+  expectedEndDate DateTime?
+  actualEndDate   DateTime?
+  status       String   @default("养殖中") // 待入栏, 养殖中, 已出栏, 异常
+  mortalityRate Float   @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  farm        Farm            @relation(fields: [farmId], references: [id])
+  house       ChickenHouse    @relation(fields: [houseId], references: [id])
+  medications MedicationRecord[]
+  healthAlerts HealthAlert[]
+  costs       CostRecord[]
+  feeds       FeedRecord[]
+  slaughterRecords SlaughterRecord[]
+}
+
+// 设备
+model Device {
+  id           String   @id @default(cuid())
+  farmId       String
+  houseId      String?
+  name         String
+  type         String   // 传感器, 控制器, 摄像头, 通风机, 照明, 加温设备, 通风设备, 其他
+  model        String?
+  status       String   @default("在线") // 在线, 离线, 维护, 故障
+  location     String?  // 设备安装位置描述
+  lastPing     DateTime?
+  lastOnlineAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  farm  Farm          @relation(fields: [farmId], references: [id])
+  house ChickenHouse? @relation(fields: [houseId], references: [id])
+}
+
+// 环境数据记录
+model EnvironmentRecord {
+  id         String   @id @default(cuid())
+  houseId    String
+  temperature Float
+  humidity    Float
+  ammonia     Float
+  co2         Float
+  windSpeed   Float?
+  createdAt   DateTime @default(now())
+
+  house ChickenHouse @relation(fields: [houseId], references: [id])
+}
+
+// 用药记录
+model MedicationRecord {
+  id            String   @id @default(cuid())
+  batchId       String
+  drugName      String
+  drugType      String   // 抗生素, 疫苗, 营养剂, 消毒剂
+  dosage        String
+  administrationMethod String // 饮水, 拌料, 注射
+  applyDate     DateTime
+  withdrawalDays Int     // 休药期天数
+  withdrawalEnd DateTime
+  operator      String
+  notes         String?
+  status        String   @default("已记录") // 已记录, 休药中, 已过休药期
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id])
+}
+
+// 健康预警
+model HealthAlert {
+  id          String   @id @default(cuid())
+  batchId     String
+  type        String   // 冷应激, 呼吸道异常, 采食下降, 扎堆行为, 活动异常
+  severity    String   @default("一般") // 低, 一般, 高, 紧急
+  description String
+  aiConfidence Float?
+  status      String   @default("待处理") // 待处理, 处理中, 已解决, 已忽略
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id])
+}
+
+// 成本记录
+model CostRecord {
+  id          String   @id @default(cuid())
+  batchId     String
+  category    String   // 饲料, 药品, 能耗, 人工, 设备, 其他
+  item        String
+  amount      Float
+  quantity    Float
+  unit        String?
+  date        DateTime
+  operator    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id])
+}
+
+// 养殖计划排程
+model SchedulePlan {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String   // 疫苗接种, 消毒计划, 设备维护, 饲料采购, 人员安排, 环境检测, 出栏计划, 其他
+  priority    String   @default("中") // 高, 中, 低
+  status      String   @default("待执行") // 待执行, 进行中, 已完成, 已取消, 已逾期
+  batchNo     String?
+  houseName   String?
+  scheduledDate DateTime
+  dueDate     DateTime?
+  assignee    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 员工
+model Staff {
+  id         String   @id @default(cuid())
+  name       String
+  role       String   // 饲养员, 技术员, 兽医, 主管, 场长
+  phone      String?
+  department String?  // 生产部, 兽医部, 后勤部, 管理部
+  houseName  String?  // A1/A2/B1/B2/全场
+  status     String   @default("在岗") // 在岗/休假/离职/培训中
+  joinDate   DateTime?
+  avatar     String?  // store first character of name for display
+  skills     String?  // comma-separated skills
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// 系统预警
+model Alert {
+  id          String   @id @default(cuid())
+  farmId      String
+  type        String   // 环境预警, 设备故障, 用药提醒, 出栏锁定, 系统通知
+  level       String   @default("info") // info, warning, danger, critical
+  title       String
+  message     String
+  source      String?
+  status      String   @default("未读") // 未读, 已读, 已处理
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farm Farm @relation(fields: [farmId], references: [id])
+}
+
+// 销售记录
+model SalesRecord {
+  id          String   @id @default(cuid())
+  batchNo     String?
+  buyer       String   // 客户名称
+  buyerPhone  String?
+  quantity    Int      // 出栏数量(只)
+  unitPrice   Float    // 单价(元/只)
+  totalPrice  Float    // 总价(元)
+  saleDate    DateTime // 销售日期
+  houseName   String?  // 鸡舍
+  breed       String?  // 品种
+  weight      Float?   // 均重(kg/只)
+  status      String   @default("已完成") // 待确认, 已完成, 已取消
+  paymentMethod String? // 现金, 银行转账, 月结
+  paymentStatus String  @default("未结算") // 未结算, 部分结算, 已结算
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 疫苗接种记录
+model VaccineRecord {
+  id          String   @id @default(cuid())
+  batchNo     String?
+  vaccineName String   // 疫苗名称
+  manufacturer String? // 生产厂家
+  batchLotNo  String?  // 疫苗批号
+  houseName   String?  // 鸡舍
+  quantity    Int      // 接种数量(只)
+  method      String   // 饮水, 注射, 滴鼻, 点眼
+  operator    String?  // 操作员
+  applyDate   DateTime // 接种日期
+  nextDate    DateTime? // 下次接种日期
+  dayAge      Int?     // 日龄
+  status      String   @default("已完成") // 已完成, 计划中, 已跳过
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 饲料记录
+model FeedRecord {
+  id          String   @id @default(cuid())
+  batchId     String?
+  houseName   String   // A1栋, A2栋, B1栋, B2栋
+  feedType    String   // 肉鸡前期料, 肉鸡中期料, 肉鸡后期料, 预混料, 其他
+  quantity    Float    // 用量(kg)
+  unit        String   @default("kg") // kg, 吨
+  supplier    String?
+  unitPrice   Float?   // 单价(元/kg)
+  totalCost   Float?   // 总价(元)
+  recordDate  DateTime // 记录日期
+  operator    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  batch ChickenBatch? @relation(fields: [batchId], references: [id])
+}
+
+// 出栏记录
+model SlaughterRecord {
+  id            String   @id @default(cuid())
+  batchId       String
+  batchNo       String?
+  houseName     String?
+  breed         String?
+  plannedDate   DateTime  // 计划出栏日期
+  actualDate    DateTime? // 实际出栏日期
+  quantity      Int       // 出栏数量(只)
+  avgWeight     Float?    // 均重(kg)
+  totalPrice    Float?    // 总售价(元)
+  buyer         String?   // 买家
+  status        String   @default("计划中") // 计划中, 待审批, 已审批, 执行中, 已完成, 已取消
+  approvalBy    String?   // 审批人
+  approvalAt    DateTime? // 审批时间
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  batch ChickenBatch @relation(fields: [batchId], references: [id])
+}

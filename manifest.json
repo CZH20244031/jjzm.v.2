@@ -1,0 +1,18 @@
+{
+  "name": "极境智牧 - 智慧养殖管理平台",
+  "short_name": "极境智牧",
+  "description": "专为寒区鸡场打造的全方位数字化养殖管理系统",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/favicon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
